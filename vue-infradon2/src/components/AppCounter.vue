@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
+//DATA => Model
+//mise à jour automatique du DOM lorsque la valeur de count change
 const count = ref(0);
 
+//METHODS => Controller
 const increment = () => {
   count.value++;
 };
@@ -12,6 +15,7 @@ const decrement = () => {
 };
 </script>
 
+<!-- TEMPLATE => View -->
 <template>
   <div>
     <p>compteur : {{ count }}</p>
