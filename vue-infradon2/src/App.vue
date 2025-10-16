@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import Counter from './components/AppCounter.vue';
+import MainComponent from './components/MainComponent.vue';
 </script>
 
 <template>
-  <Counter />
+  <MainComponent />
 </template>
