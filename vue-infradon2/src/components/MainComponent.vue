@@ -5,6 +5,8 @@ import PouchDB from 'pouchdb';
 declare interface Post {
   post_name: string;
   post_content: string;
+  title?: string;
+  comments: { title: string; author: string }[];
   attributes: {
     creation_date: any;
   };
@@ -36,7 +38,6 @@ const fetchData = () => {
     .then((result: any) => {
       postsData.value = result.rows.map((row: any) => row.doc) as Post[];
       console.log('Données récupérées : ', postsData.value);
-      console.log(postsData.value[0]?.post_name);
     })
     .catch((err: any) => {
       console.error('Erreur lors de la récupération des données : ', err);
@@ -69,7 +70,21 @@ const addDocument = () => {
 };
 
 //modifier un document
-const updateDocument = () => {};
+const updateDocument = (id: string) => {
+  storage.value
+    .get(id)
+    .then((doc: any) => {
+      doc.post_name = 'Post modifié';
+      return storage.value.put(doc);
+    })
+    .then((response: any) => {
+      console.log('Document mis à jour avec succès : ', response);
+      fetchData(); // Rafraîchir les données après la mise à jour
+    })
+    .catch((err: any) => {
+      console.error('Erreur lors de la mise à jour du document : ', err);
+    });
+};
 
 onMounted(() => {
   console.log('=> Composant initialisé');
@@ -85,7 +100,7 @@ onMounted(() => {
     <h2>{{ post.post_name }}</h2>
     <h3>{{ post.post_content }}</h3>
     <p v-for="comment in post.comments" v-bind:key="comment.id">
-      {{ comment.author }} said {{ comment.title }}
+      {{ comment.author }} said : {{ comment.title }}
     </p>
     <!--     <p v-for="comment in post.comments" v-bind:key="comment.id">{{ comment.content }}</p>
  -->
