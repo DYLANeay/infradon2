@@ -30,11 +30,46 @@ const initDatabase = () => {
 
 // Récupération des données
 const fetchData = () => {
-  // TODO Récupération des données
-  // https://pouchdb.com/api.html#batch_fetch
-  // Regarder l'exemple avec function allDocs
-  // Remplir le tableau postsData avec les données récupérées
+  console.log('=> Récupération des données');
+  storage.value
+    .allDocs({ include_docs: true, descending: true })
+    .then((result: any) => {
+      postsData.value = result.rows.map((row: any) => row.doc) as Post[];
+      console.log('Données récupérées : ', postsData.value);
+      console.log(postsData.value[0]?.post_name);
+    })
+    .catch((err: any) => {
+      console.error('Erreur lors de la récupération des données : ', err);
+    });
 };
+
+// Ajouter des documents
+const addDocument = () => {
+  const newDoc = {
+    post_name: 'Nouveau Post',
+    post_content: 'Contenu du nouveau post',
+    comments: [
+      { title: 'Great post!', author: 'Alice', id: 1 },
+      { title: 'Thanks for sharing.', author: 'Bob', id: 2 },
+    ],
+    attributes: {
+      creation_date: new Date().toISOString(),
+    },
+  };
+
+  storage.value
+    .post(newDoc)
+    .then((response: any) => {
+      console.log('Document ajouté avec succès : ', response);
+      fetchData(); // Rafraîchir les données après l'ajout
+    })
+    .catch((err: any) => {
+      console.error("Erreur lors de l'ajout du document : ", err);
+    });
+};
+
+//modifier un document
+const updateDocument = () => {};
 
 onMounted(() => {
   console.log('=> Composant initialisé');
@@ -45,8 +80,14 @@ onMounted(() => {
 
 <template>
   <h1>Fetch Data</h1>
+  <button @click="addDocument">Ajouter un document</button>
   <article v-for="post in postsData" v-bind:key="(post as any).id">
     <h2>{{ post.post_name }}</h2>
-    <p>{{ post.post_content }}</p>
+    <h3>{{ post.post_content }}</h3>
+    <p v-for="comment in post.comments" v-bind:key="comment.id">
+      {{ comment.author }} said {{ comment.title }}
+    </p>
+    <!--     <p v-for="comment in post.comments" v-bind:key="comment.id">{{ comment.content }}</p>
+ -->
   </article>
 </template>
