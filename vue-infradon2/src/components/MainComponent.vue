@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import PouchDB from 'pouchdb';
 
 declare interface Post {
+  _id?: string;
   post_name: string;
   post_content: string;
   title?: string;
@@ -79,10 +80,26 @@ const updateDocument = (id: string) => {
     })
     .then((response: any) => {
       console.log('Document mis à jour avec succès : ', response);
-      fetchData(); // Rafraîchir les données après la mise à jour
+      fetchData(); //refresh data
     })
     .catch((err: any) => {
       console.error('Erreur lors de la mise à jour du document : ', err);
+    });
+};
+
+const deleteDocument = (id: string) => {
+  storage.value
+    .get(id)
+    .then((doc: any) => {
+      return storage.value.remove(doc);
+      fetchData(); //refresh data
+    })
+    .then((response: any) => {
+      console.log('Document supprimé avec succès : ', response);
+      fetchData(); //refresh data
+    })
+    .catch((err: any) => {
+      console.error('Erreur lors de la suppression du document : ', err);
     });
 };
 
@@ -102,6 +119,8 @@ onMounted(() => {
     <p v-for="comment in post.comments" v-bind:key="comment.id">
       {{ comment.author }} said : {{ comment.title }}
     </p>
+    <button @click="updateDocument(post._id as any)">Modifier le document</button>
+    <button @click="deleteDocument(post._id as any)">Supprimer le document</button>
     <!--     <p v-for="comment in post.comments" v-bind:key="comment.id">{{ comment.content }}</p>
  -->
   </article>
