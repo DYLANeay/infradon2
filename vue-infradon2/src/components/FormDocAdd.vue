@@ -3,6 +3,7 @@ import { ref } from 'vue';
 
 interface Props {
   storage: any;
+  isOnline?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -58,6 +59,10 @@ const handleClose = () => {
         <h2>Ajouter un document</h2>
         <button @click="handleClose">&times;</button>
       </div>
+      <p v-if="props.isOnline === false">
+        Vous êtes hors ligne — le document sera stocké localement et synchronisé lorsque la
+        connexion reviendra.
+      </p>
       <form @submit="handleSubmit">
         <div>
           <label for="doc-title">Titre:</label>

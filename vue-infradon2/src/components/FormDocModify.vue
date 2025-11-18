@@ -15,6 +15,7 @@ interface Post {
 interface Props {
   storage: any;
   documentId: string;
+  isOnline?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -89,6 +90,10 @@ const handleClose = () => {
         <h2>Modifier le document</h2>
         <button @click="handleClose">&times;</button>
       </div>
+      <p v-if="props.isOnline === false">
+        Vous êtes hors ligne — la modification sera appliquée localement et synchronisée lorsque la
+        connexion reviendra.
+      </p>
       <form @submit="handleSubmit">
         <div>
           <label for="doc-title">Titre:</label>
