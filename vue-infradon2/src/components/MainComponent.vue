@@ -266,20 +266,30 @@ const toggleSimulatedOffline = () => {
 
 const closePopup = () => {
   showPopupRef.value = false;
+  fetchData();
 };
 
 const closeModifyPopup = () => {
   showModifyPopupRef.value = false;
   documentToModify.value = null;
+  fetchData();
 };
 
 const handleDocumentAdded = () => {
   fetchData();
   searchResults.value = [];
+
+  if (isOnline.value) {
+    syncToRemote();
+  }
 };
 
 const handleDocumentModified = () => {
   fetchData();
+
+  if (isOnline.value) {
+    syncToRemote();
+  }
 };
 
 onMounted(async () => {
@@ -383,9 +393,10 @@ onMounted(async () => {
       <h2>{{ book.book_name }}</h2>
       <p><strong>Catégorie:</strong> {{ book.book_category }}</p>
       <p><strong>Auteur:</strong> {{ book.book_author }}</p>
-      <h3>{{ book.book_description }}</h3>
+      <h4>{{ book.book_description }}</h4>
       <!-- on filtre pour ne pas afficher les boutons sur les index -->
       <div v-if="!book._id?.startsWith('_design/')">
+            <h3>this book has {{ book.book_likes }} likes</h3>
         <button @click="updateDocument(book._id as any)">Modifier le document</button>
         <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
       </div>
@@ -398,11 +409,12 @@ onMounted(async () => {
       <h2>{{ book.book_name }}</h2>
       <p v-if="book.book_category"><strong>Catégorie:</strong> {{ book.book_category }}</p>
       <p v-if="book.book_author"><strong>Auteur:</strong> {{ book.book_author }}</p>
-      <h3>{{ book.book_description }}</h3>
+      <h4>{{ book.book_description }}</h4>
       <p v-for="(review_comments, index) in book.review_comments" v-bind:key="index">
         {{ review_comments.author }} said : {{ review_comments.content }}
       </p>
       <div v-if="!book._id?.startsWith('_design/')">
+        <h3>this book has {{ book.book_likes }} likes</h3>
         <button @click="updateDocument(book._id as any)">Modifier le document</button>
         <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
       </div>

@@ -9,6 +9,7 @@ interface Book {
   review_title?: string;
   book_category?: string;
   book_author?: string;
+  book_likes: number;
   review_comments: { title: string; author: string }[];
   attributes?: {
     creation_date: any;
@@ -32,6 +33,7 @@ const bookDescription = ref('');
 const bookCategory = ref('');
 const bookAuthor = ref('');
 const currentDoc = ref<Book | null>(null);
+const bookLikes = ref(0);
 
 onMounted(async () => {
   try {
@@ -41,6 +43,7 @@ onMounted(async () => {
     bookDescription.value = doc.book_description || '';
     bookCategory.value = doc.book_category || '';
     bookAuthor.value = doc.book_author || '';
+    bookLikes.value = doc.book_likes || 0;
   } catch (err) {
     console.error('Erreur lors du chargement du document:', err);
     alert('Impossible de charger le document');
@@ -68,6 +71,7 @@ const handleSubmit = (e: Event) => {
     book_description: bookDescription.value,
     book_category: bookCategory.value,
     book_author: bookAuthor.value,
+    book_likes: bookLikes.value,
     attributes: {
       ...currentDoc.value.attributes,
       modification_date: new Date().toISOString(),
@@ -140,6 +144,16 @@ const handleClose = () => {
             id="doc-author"
             v-model="bookAuthor"
             placeholder="Entrez le nom de l'auteur"
+          />
+        </div>
+        <div>
+          <label for="doc-likes">Nombre de likes:</label>
+          <input
+            type="number"
+            id="doc-likes"
+            v-model="bookLikes"
+            placeholder="Entrez le nombre de likes"
+            min="0"
           />
         </div>
         <div>

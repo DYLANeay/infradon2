@@ -16,6 +16,7 @@ const bookName = ref('');
 const bookDescription = ref('');
 const bookCategory = ref('');
 const bookAuthor = ref('');
+const bookLikes = ref(0);
 
 const handleSubmit = (e: Event) => {
   e.preventDefault();
@@ -30,6 +31,7 @@ const handleSubmit = (e: Event) => {
     book_description: bookDescription.value,
     book_category: bookCategory.value,
     book_author: bookAuthor.value,
+    book_likes: bookLikes.value,
     review_comments: [],
     attributes: {
       creation_date: new Date().toISOString(),
@@ -44,6 +46,7 @@ const handleSubmit = (e: Event) => {
       bookDescription.value = '';
       bookCategory.value = '';
       bookAuthor.value = '';
+      bookLikes.value = 0;
       emit('documentAdded');
       emit('close');
     })
@@ -106,6 +109,15 @@ const handleClose = () => {
             id="doc-author"
             v-model="bookAuthor"
             placeholder="Entrez le nom de l'auteur"
+          />
+        </div>
+        <div>
+          <label for="doc-likes">Nombre de likes:</label>
+          <input
+            type="number"
+            id="doc-likes"
+            v-model="bookLikes"
+            placeholder="Entrez le nombre de likes"
           />
         </div>
         <div>
