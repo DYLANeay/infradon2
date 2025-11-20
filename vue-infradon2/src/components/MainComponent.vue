@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from 'vue';
 import PouchDB from 'pouchdb';
+import PouchDBFind from 'pouchdb-find';
 import FormDoc from './FormDocAdd.vue';
 import FormDocModify from './FormDocModify.vue';
 
-declare interface Post {
+PouchDB.plugin(PouchDBFind);
+
+declare interface Book {
   _id?: string;
-  post_name: string;
-  post_content: string;
-  title?: string;
-  category?: string;
-  author?: string;
-  comments: { title: string; author: string }[];
+  book_name: string;
+  book_description: string;
+  review_title?: string;
+  book_category?: string;
+  book_author?: string;
+  book_likes: number;
+  review_comments: { content: string; author: string }[];
   attributes: {
     creation_date: any;
   };
@@ -23,33 +27,37 @@ const remoteDB = ref();
 const isOnline = ref(true);
 const simulatedOffline = ref(false);
 // data stockées
-const postsData = ref<Post[]>([]);
+const booksData = ref<Book[]>([]);
 const showPopupRef = ref(false);
 const showModifyPopupRef = ref(false);
 const documentToModify = ref<string | null>(null);
 const syncStatus = ref('');
 const searchTerm = ref('');
-const searchResults = ref<Post[]>([]);
+const searchResults = ref<Book[]>([]);
 const isSearching = ref(false);
 
 // Factory pour générer des documents de test
 const generateTestDocuments = async (count: number = 50) => {
   console.log(`Génération de ${count} documents de test...`);
-  const categories = ['technologie', 'science', 'sport', 'culture', 'politique', 'économie'];
-  const authors = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank'];
-
+  const categories = ['philo', 'psycho', 'roman', 'poésie', 'récit', 'nouvelle'];
+  const authors = ['Dostoïevski', 'Camus', 'Jung', 'Kourkov', 'Voltaire','Hugo'];
   const docs = [];
   for (let i = 0; i < count; i++) {
     const category = categories[Math.floor(Math.random() * categories.length)];
     const author = authors[Math.floor(Math.random() * authors.length)];
 
     docs.push({
-      post_name: `Document ${i + 1} - ${category}`,
-      post_content: `Contenu du document ${i + 1} sur ${category}. Lorem ipsum dolor sit amet.`,
-      category: category,
-      author: author,
-      comments: [],
+      book_name: `Document ${i + 1} - ${category}`,
+      book_description: `Contenu du document ${i + 1} sur ${category}. Lorem ipsum dolor sit amet.`,
+      book_category: category,
+      book_author: author,
+      review_comments: [
+        { title: "Review Title 1", author: "Reviewer 1" },
+        { title: "Review Title 2", author: "Reviewer 2" }
+      ],
+      book_likes: Math.floor(Math.random() * 100),
       attributes: {
+        //date random
         creation_date: new Date(
           Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000,
         ).toISOString(),
@@ -70,10 +78,10 @@ const createIndex = async () => {
   try {
     await storage.value.createIndex({
       index: {
-        fields: ['category'],
+        fields: ['book_category',]
       },
     });
-    console.log('Index créé sur le champ category');
+    console.log('Index créé sur le champ book_category et book_author');
   } catch (err) {
     console.error("Erreur lors de la création de l'index:", err);
   }
@@ -91,10 +99,12 @@ const searchByCategory = async () => {
 
   isSearching.value = true;
   try {
+    console.log(`Recherche pour la catégorie: "${term}"`);
+
     // Recherche exacte uniquement
     const result = await storage.value.find({
       selector: {
-        category: { $eq: term },
+        book_category: { $eq: term },
       },
     });
 
@@ -102,12 +112,12 @@ const searchByCategory = async () => {
     console.log(`Recherche terminée: ${result.docs.length} résultats pour "${searchTerm.value}"`);
   } catch (err) {
     console.error('Erreur lors de la recherche:', err);
-    // Fallback: recherche manuelle dans tous les documents
+    // Fallback: recherche js dans tous les documents
     try {
       const allDocs = await storage.value.allDocs({ include_docs: true });
       searchResults.value = allDocs.rows
         .map((row: any) => row.doc)
-        .filter((doc: any) => doc.category && doc.category.toLowerCase() === term);
+        .filter((doc: any) => doc.book_category && doc.book_category.toLowerCase() === term);
       console.log(`Recherche fallback: ${searchResults.value.length} résultats`);
     } catch (fallbackErr) {
       console.error('Erreur lors de la recherche fallback:', fallbackErr);
@@ -121,24 +131,19 @@ const searchByCategory = async () => {
 const initDatabase = async () => {
   console.log('=> Initialisation des bases de données');
 
-  // Créer une base de données locale
   localDB.value = new PouchDB('infradon2_local_db');
   console.log('Base de données locale créée : infradon2_local_db');
 
-  // Se connecter à la base de données distante
   remoteDB.value = new PouchDB('http://admin:1756@localhost:5984/infradon2_db');
   console.log('Connecté à la base de données distante : infradon2_db');
 
-  // Utiliser la base locale comme base de données principale
   storage.value = localDB.value;
 
   await createIndex();
 
-  // Synchronisation initiale depuis la base distante
   syncFromRemote();
 };
 
-// Synchroniser depuis la base distante -> la base locale
 const syncFromRemote = () => {
   console.log('Synchronisation depuis la base distante vers la base locale');
   syncStatus.value = 'Téléchargement des données distantes...';
@@ -159,7 +164,6 @@ const syncFromRemote = () => {
     });
 };
 
-// Synchroniser depuis la base locale vers la base distante
 const syncToRemote = () => {
   console.log('Synchronisation depuis la base locale vers la base distante');
   syncStatus.value = 'Envoi des données locales...';
@@ -210,8 +214,8 @@ const fetchData = () => {
     .allDocs({ include_docs: true, descending: true })
     .then((result: any) => {
       console.log(result);
-      postsData.value = result.rows.map((row: any) => row.doc) as Post[];
-      console.log('Données récupérées : ', postsData.value);
+      booksData.value = result.rows.map((row: any) => row.doc) as Book[];
+      console.log('Données récupérées : ', booksData.value);
     })
     .catch((err: any) => {
       console.error('Erreur lors de la récupération des données : ', err);
@@ -375,28 +379,33 @@ onMounted(async () => {
 
   <div v-if="searchResults.length > 0">
     <h3>Résultats de recherche :</h3>
-    <article v-for="post in searchResults" v-bind:key="post._id">
-      <h2>{{ post.post_name }}</h2>
-      <p><strong>Catégorie:</strong> {{ post.category }}</p>
-      <p><strong>Auteur:</strong> {{ post.author }}</p>
-      <h3>{{ post.post_content }}</h3>
-      <button @click="updateDocument(post._id as any)">Modifier le document</button>
-      <button @click="deleteDocument(post._id as any)">Supprimer le document</button>
+    <article v-for="book in searchResults" v-bind:key="book._id">
+      <h2>{{ book.book_name }}</h2>
+      <p><strong>Catégorie:</strong> {{ book.book_category }}</p>
+      <p><strong>Auteur:</strong> {{ book.book_author }}</p>
+      <h3>{{ book.book_description }}</h3>
+      <!-- on filtre pour ne pas afficher les boutons sur les index -->
+      <div v-if="!book._id?.startsWith('_design/')">
+        <button @click="updateDocument(book._id as any)">Modifier le document</button>
+        <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
+      </div>
     </article>
   </div>
 
   <div v-else>
     <h3>Tous les documents :</h3>
-    <article v-for="post in postsData" v-bind:key="(post as any).id">
-      <h2>{{ post.post_name }}</h2>
-      <p v-if="post.category"><strong>Catégorie:</strong> {{ post.category }}</p>
-      <p v-if="post.author"><strong>Auteur:</strong> {{ post.author }}</p>
-      <h3>{{ post.post_content }}</h3>
-      <p v-for="(comment, index) in post.comments" v-bind:key="index">
-        {{ comment.author }} said : {{ comment.title }}
+    <article v-for="book in booksData" v-bind:key="book._id">
+      <h2>{{ book.book_name }}</h2>
+      <p v-if="book.book_category"><strong>Catégorie:</strong> {{ book.book_category }}</p>
+      <p v-if="book.book_author"><strong>Auteur:</strong> {{ book.book_author }}</p>
+      <h3>{{ book.book_description }}</h3>
+      <p v-for="(review_comments, index) in book.review_comments" v-bind:key="index">
+        {{ review_comments.author }} said : {{ review_comments.content }}
       </p>
-      <button @click="updateDocument(post._id as any)">Modifier le document</button>
-      <button @click="deleteDocument(post._id as any)">Supprimer le document</button>
+      <div v-if="!book._id?.startsWith('_design/')">
+        <button @click="updateDocument(book._id as any)">Modifier le document</button>
+        <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
+      </div>
     </article>
   </div>
 </template>

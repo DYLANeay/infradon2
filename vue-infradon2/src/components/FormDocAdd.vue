@@ -12,21 +12,25 @@ const emit = defineEmits<{
   documentAdded: [];
 }>();
 
-const title = ref('');
-const content = ref('');
+const bookName = ref('');
+const bookDescription = ref('');
+const bookCategory = ref('');
+const bookAuthor = ref('');
 
 const handleSubmit = (e: Event) => {
   e.preventDefault();
 
-  if (!title.value || !content.value) {
-    alert('Veuillez remplir tous les champs');
+  if (!bookName.value || !bookDescription.value) {
+    alert('Veuillez remplir tous les champs obligatoires');
     return;
   }
 
   const newDoc = {
-    post_name: title.value,
-    post_content: content.value,
-    comments: [],
+    book_name: bookName.value,
+    book_description: bookDescription.value,
+    book_category: bookCategory.value,
+    book_author: bookAuthor.value,
+    review_comments: [],
     attributes: {
       creation_date: new Date().toISOString(),
     },
@@ -36,8 +40,10 @@ const handleSubmit = (e: Event) => {
     .post(newDoc)
     .then((response: any) => {
       console.log('Document ajouté avec succès : ', response);
-      title.value = '';
-      content.value = '';
+      bookName.value = '';
+      bookDescription.value = '';
+      bookCategory.value = '';
+      bookAuthor.value = '';
       emit('documentAdded');
       emit('close');
     })
@@ -65,24 +71,42 @@ const handleClose = () => {
       </p>
       <form @submit="handleSubmit">
         <div>
-          <label for="doc-title">Titre:</label>
+          <label for="doc-name">Nom du livre:</label>
           <input
             type="text"
-            id="doc-title"
-            v-model="title"
-            placeholder="Entrez le titre"
+            id="doc-name"
+            v-model="bookName"
+            placeholder="Entrez le nom du livre"
             required
           />
         </div>
         <div>
-          <label for="doc-content">Contenu:</label>
+          <label for="doc-description">Description:</label>
           <textarea
-            id="doc-content"
-            v-model="content"
-            placeholder="Entrez le contenu"
+            id="doc-description"
+            v-model="bookDescription"
+            placeholder="Entrez la description"
             rows="6"
             required
           ></textarea>
+        </div>
+        <div>
+          <label for="doc-category">Catégorie:</label>
+          <input
+            type="text"
+            id="doc-category"
+            v-model="bookCategory"
+            placeholder="Ex: philo, psycho, roman, poésie..."
+          />
+        </div>
+        <div>
+          <label for="doc-author">Auteur:</label>
+          <input
+            type="text"
+            id="doc-author"
+            v-model="bookAuthor"
+            placeholder="Entrez le nom de l'auteur"
+          />
         </div>
         <div>
           <button type="button" @click="handleClose">Annuler</button>

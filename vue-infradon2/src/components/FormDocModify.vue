@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 
-interface Post {
+interface Book {
   _id?: string;
   _rev?: string;
-  post_name: string;
-  post_content: string;
-  comments?: any[];
+  book_name: string;
+  book_description: string;
+  review_title?: string;
+  book_category?: string;
+  book_author?: string;
+  review_comments: { title: string; author: string }[];
   attributes?: {
     creation_date: any;
   };
@@ -24,16 +27,20 @@ const emit = defineEmits<{
   documentModified: [];
 }>();
 
-const title = ref('');
-const content = ref('');
-const currentDoc = ref<Post | null>(null);
+const bookName = ref('');
+const bookDescription = ref('');
+const bookCategory = ref('');
+const bookAuthor = ref('');
+const currentDoc = ref<Book | null>(null);
 
 onMounted(async () => {
   try {
     const doc = await props.storage.get(props.documentId);
     currentDoc.value = doc;
-    title.value = doc.post_name || '';
-    content.value = doc.post_content || '';
+    bookName.value = doc.book_name || '';
+    bookDescription.value = doc.book_description || '';
+    bookCategory.value = doc.book_category || '';
+    bookAuthor.value = doc.book_author || '';
   } catch (err) {
     console.error('Erreur lors du chargement du document:', err);
     alert('Impossible de charger le document');
@@ -44,8 +51,8 @@ onMounted(async () => {
 const handleSubmit = (e: Event) => {
   e.preventDefault();
 
-  if (!title.value || !content.value) {
-    alert('Veuillez remplir tous les champs');
+  if (!bookName.value || !bookDescription.value) {
+    alert('Veuillez remplir tous les champs obligatoires');
     return;
   }
 
@@ -57,8 +64,10 @@ const handleSubmit = (e: Event) => {
   // Mettre à jour le document existant (garder _id et _rev)
   const updatedDoc = {
     ...currentDoc.value,
-    post_name: title.value,
-    post_content: content.value,
+    book_name: bookName.value,
+    book_description: bookDescription.value,
+    book_category: bookCategory.value,
+    book_author: bookAuthor.value,
     attributes: {
       ...currentDoc.value.attributes,
       modification_date: new Date().toISOString(),
@@ -96,24 +105,42 @@ const handleClose = () => {
       </p>
       <form @submit="handleSubmit">
         <div>
-          <label for="doc-title">Titre:</label>
+          <label for="doc-name">Nom du livre:</label>
           <input
             type="text"
-            id="doc-title"
-            v-model="title"
-            placeholder="Entrez le titre"
+            id="doc-name"
+            v-model="bookName"
+            placeholder="Entrez le nom du livre"
             required
           />
         </div>
         <div>
-          <label for="doc-content">Contenu:</label>
+          <label for="doc-description">Description:</label>
           <textarea
-            id="doc-content"
-            v-model="content"
-            placeholder="Entrez le contenu"
+            id="doc-description"
+            v-model="bookDescription"
+            placeholder="Entrez la description"
             rows="6"
             required
           ></textarea>
+        </div>
+        <div>
+          <label for="doc-category">Catégorie:</label>
+          <input
+            type="text"
+            id="doc-category"
+            v-model="bookCategory"
+            placeholder="Ex: philo, psycho, roman, poésie..."
+          />
+        </div>
+        <div>
+          <label for="doc-author">Auteur:</label>
+          <input
+            type="text"
+            id="doc-author"
+            v-model="bookAuthor"
+            placeholder="Entrez le nom de l'auteur"
+          />
         </div>
         <div>
           <button type="button" @click="handleClose">Annuler</button>
