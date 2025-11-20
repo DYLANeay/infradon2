@@ -238,9 +238,34 @@ const deleteDocument = (id: string) => {
     .then((response: any) => {
       console.log('Document supprimé avec succès : ', response);
       fetchData(); //refresh data
+      // Si en ligne, synchroniser vers le serveur distant
+      if (isOnline.value) {
+        syncToRemote();
+      }
     })
     .catch((err: any) => {
       console.error('Erreur lors de la suppression du document : ', err);
+    });
+};
+
+// Fonction pour aimer un livre
+const likeBook = (id: string) => {
+  storage.value
+    .get(id)
+    .then((doc: any) => {
+      doc.book_likes = doc.book_likes + 1;
+      return storage.value.put(doc);
+    })
+    .then((response: any) => {
+      console.log('Livre liké avec succès : ', response);
+      fetchData();
+      // Si en ligne, synchroniser vers le serveur distant
+      if (isOnline.value) {
+        syncToRemote();
+      }
+    })
+    .catch((err: any) => {
+      console.error('Erreur lors du like du livre : ', err);
     });
 };
 
@@ -396,7 +421,8 @@ onMounted(async () => {
       <h4>{{ book.book_description }}</h4>
       <!-- on filtre pour ne pas afficher les boutons sur les index -->
       <div v-if="!book._id?.startsWith('_design/')">
-            <h3>this book has {{ book.book_likes }} likes</h3>
+        <p>❤️ {{ book.book_likes || 0 }} like(s)</p>
+        <button @click="likeBook(book._id as any)">👍 Liker</button>
         <button @click="updateDocument(book._id as any)">Modifier le document</button>
         <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
       </div>
@@ -414,7 +440,8 @@ onMounted(async () => {
         {{ review_comments.author }} said : {{ review_comments.content }}
       </p>
       <div v-if="!book._id?.startsWith('_design/')">
-        <h3>this book has {{ book.book_likes }} likes</h3>
+        <p>{{ book.book_likes}} {{ (book.book_likes ?? 0) > 1 ? 'likes' : 'like' }}</p>
+        <button @click="likeBook(book._id as any)">Liker</button>
         <button @click="updateDocument(book._id as any)">Modifier le document</button>
         <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
       </div>
