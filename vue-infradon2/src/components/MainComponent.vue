@@ -421,7 +421,7 @@ onMounted(async () => {
       <h4>{{ book.book_description }}</h4>
       <!-- on filtre pour ne pas afficher les boutons sur les index -->
       <div v-if="!book._id?.startsWith('_design/')">
-        <p>❤️ {{ book.book_likes || 0 }} like(s)</p>
+        <p> {{ book.book_likes || 0 }} like(s)</p>
         <button @click="likeBook(book._id as any)">👍 Liker</button>
         <button @click="updateDocument(book._id as any)">Modifier le document</button>
         <button @click="deleteDocument(book._id as any)">Supprimer le document</button>
@@ -448,3 +448,135 @@ onMounted(async () => {
     </article>
   </div>
 </template>
+
+<style scoped>
+/* Container principal */
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 2rem;
+  color: #1a1a1a;
+}
+
+/* Boutons d'action */
+.action-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  color: #374151;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.2s;
+}
+
+button:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Barre de recherche */
+input[type="text"] {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  margin-right: 0.5rem;
+  min-width: 250px;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* Messages de statut */
+p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
+}
+
+/* Articles (livres) */
+article {
+  background-color: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+article h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 0.5rem;
+}
+
+article h3 {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #374151;
+  margin: 0.75rem 0;
+}
+
+article h4 {
+  font-size: 1rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin: 0.75rem 0;
+  line-height: 1.6;
+}
+
+article p {
+  margin: 0.5rem 0;
+}
+
+article p strong {
+  color: #374151;
+  font-weight: 600;
+}
+
+/* Boutons dans les articles */
+article button {
+  margin-right: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+article button:first-of-type {
+  background-color: #6366f1;
+  color: white;
+  border-color: #6366f1;
+}
+
+article button:first-of-type:hover {
+  background-color: #4f46e5;
+}
+
+/* Sections */
+div > h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 1rem;
+  margin-top: 2rem;
+}
+
+/* Global */
+* {
+  box-sizing: border-box;
+}
+</style>
