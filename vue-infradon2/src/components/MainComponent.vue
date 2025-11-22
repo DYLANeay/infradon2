@@ -34,6 +34,7 @@ const syncStatus = ref("");
 const searchTerm = ref("");
 const searchResults = ref<Book[]>([]);
 const isSearching = ref(false);
+const sortByLikes = ref(false);
 
 // Factory pour générer des documents de test
 const generateTestDocuments = async (count: number = 50) => {
@@ -242,7 +243,7 @@ const deleteDocument = (id: string) => {
 		.then((response: any) => {
 			console.log("Document supprimé avec succès : ", response);
 			fetchData(); //refresh data
-			// Si en ligne, synchroniser vers le serveur distant
+
 			if (isOnline.value) {
 				syncToRemote();
 			}
@@ -327,6 +328,17 @@ const handleCommentChanged = () => {
 	}
 };
 
+const toggleSortByLikes = () => {
+	sortByLikes.value = !sortByLikes.value;
+};
+
+const getSortedBooks = (books: Book[]) => {
+	if (!sortByLikes.value) {
+		return books;
+	}
+	return [...books].sort((a, b) => (b.book_likes ?? 0) - (a.book_likes ?? 0));
+};
+
 onMounted(async () => {
 	console.log("=> Composant initialisé");
 	await initDatabase();
@@ -374,21 +386,26 @@ onMounted(async () => {
 		<button @click="generateTestDocuments(50)">Générer 50 documents test</button>
 	</div>
 
-	<div>
-		<input
-			type="text"
-			v-model="searchTerm"
-			placeholder="Rechercher par catégorie"
-			@input="searchByCategory"
-		/>
-		<button
-			v-if="searchTerm"
-			@click="
-				searchTerm = '';
-				searchResults = [];
-			"
-		>
-			Effacer recherche
+	<div class="search-sort-container">
+		<div class="search-bar">
+			<input
+				type="text"
+				v-model="searchTerm"
+				placeholder="Rechercher par catégorie"
+				@input="searchByCategory"
+			/>
+			<button
+				v-if="searchTerm"
+				@click="
+					searchTerm = '';
+					searchResults = [];
+				"
+			>
+				Effacer recherche
+			</button>
+		</div>
+		<button @click="toggleSortByLikes" class="sort-button" :class="{ active: sortByLikes }">
+			{{ sortByLikes ? "Tri: Plus de likes" : "Trier par likes" }}
 		</button>
 		<p v-if="isSearching">Recherche en cours...</p>
 		<p v-if="searchResults.length > 0">{{ searchResults.length }} résultat trouvés</p>
@@ -424,7 +441,7 @@ onMounted(async () => {
 
 	<div v-if="searchResults.length > 0">
 		<h3>Résultats de recherche :</h3>
-		<template v-for="book in searchResults" v-bind:key="book._id">
+		<template v-for="book in getSortedBooks(searchResults)" v-bind:key="book._id">
 			<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
 			<article v-if="!book._id?.startsWith('_design/') && book.book_name">
 				<h2>{{ book.book_name }}</h2>
@@ -456,7 +473,7 @@ onMounted(async () => {
 		<h3>Tous les livres :</h3>
 
 		<div v-if="booksData.length > 0">
-			<template v-for="book in booksData" :key="book._id">
+			<template v-for="book in getSortedBooks(booksData)" :key="book._id">
 				<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
 				<article v-if="!book._id?.startsWith('_design/') && book.book_name">
 					<h2>{{ book.book_name }}</h2>
@@ -611,7 +628,6 @@ article button:first-of-type:hover {
 	background-color: #4f46e5;
 }
 
-/* Sections */
 div > h3 {
 	font-size: 1.25rem;
 	font-weight: 600;
@@ -620,7 +636,49 @@ div > h3 {
 	margin-top: 2rem;
 }
 
-/* Global */
+.search-sort-container {
+	display: flex;
+	gap: 1rem;
+	align-items: flex-start;
+	margin-bottom: 1.5rem;
+	flex-wrap: wrap;
+}
+
+.search-bar {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+	flex: 1;
+	min-width: 300px;
+}
+
+.sort-button {
+	padding: 0.5rem 1rem;
+	border: 1px solid #d1d5db;
+	background-color: white;
+	color: #374151;
+	border-radius: 0.375rem;
+	cursor: pointer;
+	font-size: 0.875rem;
+	transition: all 0.2s;
+	white-space: nowrap;
+}
+
+.sort-button:hover {
+	background-color: #f3f4f6;
+	border-color: #9ca3af;
+}
+
+.sort-button.active {
+	background-color: #6366f1;
+	color: white;
+	border-color: #6366f1;
+}
+
+.sort-button.active:hover {
+	background-color: #4f46e5;
+}
+
 * {
 	box-sizing: border-box;
 }
