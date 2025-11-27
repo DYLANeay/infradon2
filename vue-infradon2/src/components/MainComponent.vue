@@ -358,24 +358,23 @@ const toggleSortByLikes = () => {
 	fetchData();
 };
 
-const renderTenTopLikes = () => {
-	booksData.value = storage.value
-		.find({
+const renderTenTopLikes = async () => {
+	try {
+		const result = await storage.value.find({
 			selector: {
 				book_likes: { $gte: 0 },
 			},
 			sort: [{ book_likes: "desc" }],
 			limit: 10,
-		})
-		.then((result: any) => {
-			booksData.value = result.docs as Book[];
-		})
-		.catch((err: any) => {
-			console.error(
-				"Erreur lors de la récupération des top 10 livres les plus likés : ",
-				err,
-			);
 		});
+		booksData.value = result.docs as Book[];
+		console.log(`Top 10 livres les plus likés récupérés: ${result.docs.length} résultats`);
+	} catch (err) {
+		console.error(
+			"Erreur lors de la récupération des top 10 livres les plus likés : ",
+			err,
+		);
+	}
 };
 
 onMounted(async () => {
