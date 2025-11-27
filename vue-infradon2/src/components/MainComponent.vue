@@ -81,7 +81,12 @@ const createIndex = async () => {
 				fields: ["book_category"],
 			},
 		});
-		console.log("Index créé sur le champ book_category et book_author");
+		await storage.value.createIndex({
+			index: {
+				fields: ["book_likes"],
+			},
+		});
+		console.log("indexs créées");
 	} catch (err) {
 		console.error("Erreur lors de la création de l'index:", err);
 	}
@@ -101,12 +106,19 @@ const searchByCategory = async () => {
 	try {
 		console.log(`Recherche pour la catégorie: "${term}"`);
 
-		// Recherche exacte uniquement
-		const result = await storage.value.find({
+		const queryOptions: any = {
 			selector: {
 				book_category: { $eq: term },
 			},
-		});
+		};
+
+		// Ajouter le tri par lkikes si activé
+		if (sortByLikes.value) {
+			queryOptions.selector.book_likes = { $gte: 0 };
+			queryOptions.sort = [{ book_likes: "desc" }];
+		}
+
+		const result = await storage.value.find(queryOptions);
 
 		searchResults.value = result.docs;
 		console.log(
@@ -213,18 +225,30 @@ const syncDatabase = () => {
 };
 
 // récupération des données
-const fetchData = () => {
+const fetchData = async () => {
 	console.log("=> Récupération des données");
-	storage.value
-		.allDocs({ include_docs: true, descending: true })
-		.then((result: any) => {
-			console.log(result);
+	try {
+		if (sortByLikes.value) {
+			// Utiliser l'index pour trier par likes
+			const result = await storage.value.find({
+				selector: {
+					book_likes: { $gte: 0 },
+				},
+				sort: [{ book_likes: "desc" }],
+			});
+			booksData.value = result.docs as Book[];
+		} else {
+			// Tri par défaut (date de création)
+			const result = await storage.value.allDocs({
+				include_docs: true,
+				descending: true,
+			});
 			booksData.value = result.rows.map((row: any) => row.doc) as Book[];
-			console.log("Données récupérées : ", booksData.value);
-		})
-		.catch((err: any) => {
-			console.error("Erreur lors de la récupération des données : ", err);
-		});
+		}
+		console.log("Données récupérées : ", booksData.value);
+	} catch (err) {
+		console.error("Erreur lors de la récupération des données : ", err);
+	}
 };
 
 //modifier un document
@@ -330,13 +354,28 @@ const handleCommentChanged = () => {
 
 const toggleSortByLikes = () => {
 	sortByLikes.value = !sortByLikes.value;
+	// Rafraîchir les données avec le nouveau tri
+	fetchData();
 };
 
-const getSortedBooks = (books: Book[]) => {
-	if (!sortByLikes.value) {
-		return books;
-	}
-	return [...books].sort((a, b) => (b.book_likes ?? 0) - (a.book_likes ?? 0));
+const renderTenTopLikes = () => {
+	booksData.value = storage.value
+		.find({
+			selector: {
+				book_likes: { $gte: 0 },
+			},
+			sort: [{ book_likes: "desc" }],
+			limit: 10,
+		})
+		.then((result: any) => {
+			booksData.value = result.docs as Book[];
+		})
+		.catch((err: any) => {
+			console.error(
+				"Erreur lors de la récupération des top 10 livres les plus likés : ",
+				err,
+			);
+		});
 };
 
 onMounted(async () => {
@@ -406,11 +445,22 @@ onMounted(async () => {
 				Effacer recherche
 			</button>
 		</div>
+		<div>
+			<button @click="renderTenTopLikes">
+				Afficher les 10 livres les plus likés uniquement
+			</button>
+		</div>
 		<button @click="toggleSortByLikes" class="sort-button" :class="{ active: sortByLikes }">
 			{{ sortByLikes ? "Tri: Plus de likes" : "Trier par likes" }}
 		</button>
 		<p v-if="isSearching">Recherche en cours...</p>
-		<p v-if="searchResults.length > 0">{{ searchResults.length }} résultat trouvés</p>
+		<p v-if="searchResults.length > 0">
+			{{
+				searchResults.length > 1
+					? searchResults.length + " résultats trouvés"
+					: searchResults.length + " résultat trouvé"
+			}}
+		</p>
 		<p v-if="searchTerm && !isSearching && searchResults.length === 0">
 			Aucun résultat trouvé pour "{{ searchTerm }}"
 		</p>
@@ -443,7 +493,7 @@ onMounted(async () => {
 
 	<div v-if="searchResults.length > 0">
 		<h3>Résultats de recherche :</h3>
-		<template v-for="book in getSortedBooks(searchResults)" v-bind:key="book._id">
+		<template v-for="book in searchResults" v-bind:key="book._id">
 			<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
 			<article v-if="!book._id?.startsWith('_design/') && book.book_name">
 				<h2>{{ book.book_name }}</h2>
@@ -475,7 +525,7 @@ onMounted(async () => {
 		<h3>Tous les livres :</h3>
 
 		<div v-if="booksData.length > 0">
-			<template v-for="book in getSortedBooks(booksData)" :key="book._id">
+			<template v-for="book in booksData" :key="book._id">
 				<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
 				<article v-if="!book._id?.startsWith('_design/') && book.book_name">
 					<h2>{{ book.book_name }}</h2>
