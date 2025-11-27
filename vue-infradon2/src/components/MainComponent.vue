@@ -382,7 +382,9 @@ onMounted(async () => {
 		<button @click="syncDatabase">Synchroniser</button>
 		<button @click="syncFromRemote">Télécharger</button>
 		<button @click="syncToRemote">Envoyer</button>
-		<button @click="toggleSimulatedOffline">Basculer mode hors ligne simulé</button>
+		<button @click="toggleSimulatedOffline">
+			{{ isOnline ? "Activer" : "Désactiver" }} mode hors ligne simulé
+		</button>
 		<button @click="generateTestDocuments(50)">Générer 50 documents test</button>
 	</div>
 
