@@ -24,6 +24,9 @@ declare interface Book {
 const storage = ref(); // considered as main db
 const localDB = ref();
 const remoteDB = ref();
+const commentsLocalDB = ref();
+const commentsRemoteDB = ref();
+const commentsStorage = ref();
 const isOnline = ref(true);
 const simulatedOffline = ref(false);
 const booksData = ref<Book[]>([]);
@@ -39,11 +42,26 @@ const sortByLikes = ref(false);
 // Factory pour générer des documents de test
 const generateTestDocuments = async (count: number = 50) => {
 	console.log(`Génération de ${count} documents de test...`);
-	const categories = ["philo", "psycho", "roman", "poésie", "récit", "nouvelle"];
-	const authors = ["Dostoïevski", "Camus", "Jung", "Kourkov", "Voltaire", "Hugo"];
+	const categories = [
+		"philo",
+		"psycho",
+		"roman",
+		"poésie",
+		"récit",
+		"nouvelle",
+	];
+	const authors = [
+		"Dostoïevski",
+		"Camus",
+		"Jung",
+		"Kourkov",
+		"Voltaire",
+		"Hugo",
+	];
 	const docs = [];
 	for (let i = 0; i < count; i++) {
-		const category = categories[Math.floor(Math.random() * categories.length)];
+		const category =
+			categories[Math.floor(Math.random() * categories.length)];
 		const author = authors[Math.floor(Math.random() * authors.length)];
 
 		docs.push({
@@ -59,7 +77,8 @@ const generateTestDocuments = async (count: number = 50) => {
 			attributes: {
 				//date random
 				creation_date: new Date(
-					Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000,
+					Date.now() -
+						Math.random() * 365 * 24 * 60 * 60 * 1000,
 				).toISOString(),
 			},
 		});
@@ -76,6 +95,7 @@ const generateTestDocuments = async (count: number = 50) => {
 
 const createIndex = async () => {
 	try {
+		// Indexes for books database
 		await storage.value.createIndex({
 			index: {
 				fields: ["book_category"],
@@ -86,7 +106,19 @@ const createIndex = async () => {
 				fields: ["book_likes"],
 			},
 		});
-		console.log("indexs créées");
+		console.log("Indexes pour les livres créées");
+
+		await commentsStorage.value.createIndex({
+			index: {
+				fields: ["book_id"],
+			},
+		});
+		await commentsStorage.value.createIndex({
+			index: {
+				fields: ["type", "book_id"],
+			},
+		});
+		console.log("Indexes pour les commentaires créées");
 	} catch (err) {
 		console.error("Erreur lors de la création de l'index:", err);
 	}
@@ -128,16 +160,24 @@ const searchByCategory = async () => {
 		console.error("Erreur lors de la recherche:", err);
 		// Fallback: recherche js dans tous les documents
 		try {
-			const allDocs = await storage.value.allDocs({ include_docs: true });
+			const allDocs = await storage.value.allDocs({
+				include_docs: true,
+			});
 			searchResults.value = allDocs.rows
 				.map((row: any) => row.doc)
 				.filter(
 					(doc: any) =>
-						doc.book_category && doc.book_category.toLowerCase() === term,
+						doc.book_category &&
+						doc.book_category.toLowerCase() === term,
 				);
-			console.log(`Recherche fallback: ${searchResults.value.length} résultats`);
+			console.log(
+				`Recherche fallback: ${searchResults.value.length} résultats`,
+			);
 		} catch (fallbackErr) {
-			console.error("Erreur lors de la recherche fallback:", fallbackErr);
+			console.error(
+				"Erreur lors de la recherche fallback:",
+				fallbackErr,
+			);
 			searchResults.value = [];
 		}
 	}
@@ -148,13 +188,31 @@ const searchByCategory = async () => {
 const initDatabase = async () => {
 	console.log("=> Initialisation des bases de données");
 
+	// Base de données pour les livres
 	localDB.value = new PouchDB("infradon2_local_db");
 	console.log("Base de données locale créée : infradon2_local_db");
 
-	remoteDB.value = new PouchDB("http://admin:1756@localhost:5984/infradon2_db");
+	remoteDB.value = new PouchDB(
+		"http://admin:1756@localhost:5984/infradon2_db",
+	);
 	console.log("Connecté à la base de données distante : infradon2_db");
 
 	storage.value = localDB.value;
+
+	// Base de données pour les commentaires
+	commentsLocalDB.value = new PouchDB("infradon2_comments_local_db");
+	console.log(
+		"Base de données locale des commentaires créée : infradon2_comments_local_db",
+	);
+
+	commentsRemoteDB.value = new PouchDB(
+		"http://admin:1756@localhost:5984/infradon2_comments_db",
+	);
+	console.log(
+		"Connecté à la base de données distante des commentaires : infradon2_comments_db",
+	);
+
+	commentsStorage.value = commentsLocalDB.value;
 
 	await createIndex();
 
@@ -162,13 +220,19 @@ const initDatabase = async () => {
 };
 
 const syncFromRemote = () => {
-	console.log("Synchronisation depuis la base distante vers la base locale");
+	console.log(
+		"Synchronisation depuis la base distante vers la base locale",
+	);
 	syncStatus.value = "Téléchargement des données distantes...";
 
+	// Sync books database
 	localDB.value.replicate
 		.from(remoteDB.value)
 		.on("complete", (info: any) => {
-			console.log("Synchronisation depuis la base distante terminée", info);
+			console.log(
+				"Synchronisation depuis la base distante terminée",
+				info,
+			);
 			syncStatus.value = "Données distantes synchronisées";
 			fetchData();
 			setTimeout(() => {
@@ -176,27 +240,70 @@ const syncFromRemote = () => {
 			}, 3000);
 		})
 		.on("error", (err: any) => {
-			console.error("Erreur lors de la synchronisation depuis la base distante :", err);
+			console.error(
+				"Erreur lors de la synchronisation depuis la base distante :",
+				err,
+			);
 			syncStatus.value = "Erreur de synchronisation";
+		});
+
+	// Sync comments database
+	commentsLocalDB.value.replicate
+		.from(commentsRemoteDB.value)
+		.on("complete", (info: any) => {
+			console.log(
+				"Synchronisation des commentaires depuis la base distante terminée",
+				info,
+			);
+		})
+		.on("error", (err: any) => {
+			console.error(
+				"Erreur lors de la synchronisation des commentaires depuis la base distante :",
+				err,
+			);
 		});
 };
 
 const syncToRemote = () => {
-	console.log("Synchronisation depuis la base locale vers la base distante");
+	console.log(
+		"Synchronisation depuis la base locale vers la base distante",
+	);
 	syncStatus.value = "Envoi des données locales...";
 
+	// Sync books database
 	localDB.value.replicate
 		.to(remoteDB.value)
 		.on("complete", (info: any) => {
-			console.log("Synchronisation vers la base distante terminée", info);
+			console.log(
+				"Synchronisation vers la base distante terminée",
+				info,
+			);
 			syncStatus.value = "Données locales envoyées";
 			setTimeout(() => {
 				syncStatus.value = "";
 			}, 3000);
 		})
 		.on("error", (err: any) => {
-			console.error("Erreur lors de la synchronisation vers la base distante :", err);
+			console.error(
+				"Erreur lors de la synchronisation vers la base distante :",
+				err,
+			);
 			syncStatus.value = "Erreur d'envoi";
+		});
+
+	commentsLocalDB.value.replicate
+		.to(commentsRemoteDB.value)
+		.on("complete", (info: any) => {
+			console.log(
+				"Synchronisation des commentaires vers la base distante terminée",
+				info,
+			);
+		})
+		.on("error", (err: any) => {
+			console.error(
+				"Erreur lors de la synchronisation des commentaires vers la base distante :",
+				err,
+			);
 		});
 };
 
@@ -208,7 +315,10 @@ const syncDatabase = () => {
 	localDB.value
 		.sync(remoteDB.value)
 		.on("complete", (info: any) => {
-			console.log("Synchronisation bidirectionnelle terminée", info);
+			console.log(
+				"Synchronisation bidirectionnelle terminée",
+				info,
+			);
 			syncStatus.value = "Synchronisation réussie";
 			fetchData();
 			setTimeout(() => {
@@ -221,6 +331,27 @@ const syncDatabase = () => {
 		})
 		.on("change", (info: any) => {
 			console.log("Changements détectés:", info);
+		});
+
+	commentsLocalDB.value
+		.sync(commentsRemoteDB.value)
+		.on("complete", (info: any) => {
+			console.log(
+				"Synchronisation bidirectionnelle des commentaires terminée",
+				info,
+			);
+		})
+		.on("error", (err: any) => {
+			console.error(
+				"Erreur lors de la synchronisation des commentaires :",
+				err,
+			);
+		})
+		.on("change", (info: any) => {
+			console.log(
+				"Changements détectés dans les commentaires:",
+				info,
+			);
 		});
 };
 
@@ -238,12 +369,14 @@ const fetchData = async () => {
 			});
 			booksData.value = result.docs as Book[];
 		} else {
-			// Tri par défaut (date de création)
+			//tri par défaut
 			const result = await storage.value.allDocs({
 				include_docs: true,
 				descending: true,
 			});
-			booksData.value = result.rows.map((row: any) => row.doc) as Book[];
+			booksData.value = result.rows.map(
+				(row: any) => row.doc,
+			) as Book[];
 		}
 		console.log("Données récupérées : ", booksData.value);
 	} catch (err) {
@@ -273,7 +406,10 @@ const deleteDocument = (id: string) => {
 			}
 		})
 		.catch((err: any) => {
-			console.error("Erreur lors de la suppression du document : ", err);
+			console.error(
+				"Erreur lors de la suppression du document : ",
+				err,
+			);
 		});
 };
 
@@ -368,7 +504,9 @@ const renderTenTopLikes = async () => {
 			limit: 10,
 		});
 		booksData.value = result.docs as Book[];
-		console.log(`Top 10 livres les plus likés récupérés: ${result.docs.length} résultats`);
+		console.log(
+			`Top 10 livres les plus likés récupérés: ${result.docs.length} résultats`,
+		);
 	} catch (err) {
 		console.error(
 			"Erreur lors de la récupération des top 10 livres les plus likés : ",
@@ -384,7 +522,9 @@ onMounted(async () => {
 	const handleOnline = () => {
 		console.log("Network: online");
 		if (simulatedOffline.value) {
-			console.log("Network online ignored because simulated offline is active");
+			console.log(
+				"Network online ignored because simulated offline is active",
+			);
 			return;
 		}
 		isOnline.value = true;
@@ -395,7 +535,9 @@ onMounted(async () => {
 	const handleOffline = () => {
 		console.log("Network: offline");
 		if (simulatedOffline.value) {
-			console.log("Network offline event ignored because simulated offline is active");
+			console.log(
+				"Network offline event ignored because simulated offline is active",
+			);
 			return;
 		}
 		isOnline.value = false;
@@ -421,9 +563,12 @@ onMounted(async () => {
 		<button @click="syncFromRemote">Télécharger</button>
 		<button @click="syncToRemote">Envoyer</button>
 		<button @click="toggleSimulatedOffline">
-			{{ isOnline ? "Activer" : "Désactiver" }} mode hors ligne simulé
+			{{ isOnline ? "Activer" : "Désactiver" }} mode hors ligne
+			simulé
 		</button>
-		<button @click="generateTestDocuments(50)">Générer 50 documents test</button>
+		<button @click="generateTestDocuments(50)">
+			Générer 50 documents test
+		</button>
 	</div>
 
 	<div class="search-sort-container">
@@ -449,7 +594,11 @@ onMounted(async () => {
 				Afficher les 10 livres les plus likés uniquement
 			</button>
 		</div>
-		<button @click="toggleSortByLikes" class="sort-button" :class="{ active: sortByLikes }">
+		<button
+			@click="toggleSortByLikes"
+			class="sort-button"
+			:class="{ active: sortByLikes }"
+		>
 			{{ sortByLikes ? "Tri: Plus de likes" : "Trier par likes" }}
 		</button>
 		<p v-if="isSearching">Recherche en cours...</p>
@@ -468,7 +617,13 @@ onMounted(async () => {
 	<p v-if="syncStatus">{{ syncStatus }}</p>
 	<p>
 		Statut réseau:
-		{{ simulatedOffline ? "Hors ligne (simulé)" : isOnline ? "En ligne" : "Hors ligne" }}
+		{{
+			simulatedOffline
+				? "Hors ligne (simulé)"
+				: isOnline
+					? "En ligne"
+					: "Hors ligne"
+		}}
 	</p>
 
 	<!-- Formulaire d'ajout (autre component) -->
@@ -494,14 +649,24 @@ onMounted(async () => {
 		<h3>Résultats de recherche :</h3>
 		<template v-for="book in searchResults" v-bind:key="book._id">
 			<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
-			<article v-if="!book._id?.startsWith('_design/') && book.book_name">
+			<article
+				v-if="
+					!book._id?.startsWith('_design/') &&
+					book.book_name
+				"
+			>
 				<h2>{{ book.book_name }}</h2>
-				<p><strong>Catégorie:</strong> {{ book.book_category }}</p>
+				<p>
+					<strong>Catégorie:</strong>
+					{{ book.book_category }}
+				</p>
 				<p><strong>Auteur:</strong> {{ book.book_author }}</p>
 				<h4>{{ book.book_description }}</h4>
 
 				<p>{{ book.book_likes || 0 }} like(s)</p>
-				<button @click="likeBook(book._id as any)">Liker</button>
+				<button @click="likeBook(book._id as any)">
+					Liker
+				</button>
 				<button @click="updateDocument(book._id as any)">
 					Modifier le document
 				</button>
@@ -510,7 +675,7 @@ onMounted(async () => {
 				</button>
 
 				<CommentsSection
-					:storage="storage"
+					:storage="commentsStorage"
 					:book-id="book._id as string"
 					:is-online="isOnline"
 					@comment-added="handleCommentChanged"
@@ -526,20 +691,33 @@ onMounted(async () => {
 		<div v-if="booksData.length > 0">
 			<template v-for="book in booksData" :key="book._id">
 				<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
-				<article v-if="!book._id?.startsWith('_design/') && book.book_name">
+				<article
+					v-if="
+						!book._id?.startsWith('_design/') &&
+						book.book_name
+					"
+				>
 					<h2>{{ book.book_name }}</h2>
 					<p v-if="book.book_category">
-						<strong>Catégorie:</strong> {{ book.book_category }}
+						<strong>Catégorie:</strong>
+						{{ book.book_category }}
 					</p>
 					<p v-if="book.book_author">
-						<strong>Auteur:</strong> {{ book.book_author }}
+						<strong>Auteur:</strong>
+						{{ book.book_author }}
 					</p>
 					<h4>{{ book.book_description }}</h4>
 					<p>
 						{{ book.book_likes ?? 0 }}
-						{{ (book.book_likes ?? 0) > 1 ? "likes" : "like" }}
+						{{
+							(book.book_likes ?? 0) > 1
+								? "likes"
+								: "like"
+						}}
 					</p>
-					<button @click="likeBook(book._id as any)">Liker</button>
+					<button @click="likeBook(book._id as any)">
+						Liker
+					</button>
 					<button @click="updateDocument(book._id as any)">
 						Modifier le document
 					</button>
@@ -548,7 +726,7 @@ onMounted(async () => {
 					</button>
 
 					<CommentsSection
-						:storage="storage"
+						:storage="commentsStorage"
 						:book-id="book._id as string"
 						:is-online="isOnline"
 						@comment-added="handleCommentChanged"
