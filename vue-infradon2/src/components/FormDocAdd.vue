@@ -17,8 +17,35 @@ const bookDescription = ref("");
 const bookCategory = ref("");
 const bookAuthor = ref("");
 const bookLikes = ref(0);
+const selectedFile = ref<File | null>(null);
+const imagePreview = ref<string | null>(null);
 
-const handleSubmit = (e: Event) => {
+// Gestion image
+const handleFileSelect = (event: Event) => {
+	const target = event.target as HTMLInputElement;
+	const file = target.files?.[0];
+
+	if (file) {
+		if (!file.type.startsWith("image/")) {
+			alert("Veuillez sélectionner une image");
+			return;
+		}
+
+		selectedFile.value = file;
+
+		imagePreview.value = URL.createObjectURL(file);
+	}
+};
+
+const removeSelectedImage = () => {
+	if (imagePreview.value) {
+		URL.revokeObjectURL(imagePreview.value); // libère de la mémoire qui était alloué à l'url
+	}
+	selectedFile.value = null;
+	imagePreview.value = null;
+};
+
+const handleSubmit = async (e: Event) => {
 	e.preventDefault();
 
 	if (!bookName.value || !bookDescription.value) {
@@ -37,22 +64,35 @@ const handleSubmit = (e: Event) => {
 		},
 	};
 
-	props.storage
-		.post(newDoc)
-		.then((response: any) => {
-			console.log("Document ajouté avec succès : ", response);
-			bookName.value = "";
-			bookDescription.value = "";
-			bookCategory.value = "";
-			bookAuthor.value = "";
-			bookLikes.value = 0;
-			emit("documentAdded");
-			emit("close");
-		})
-		.catch((err: any) => {
-			console.error("Erreur lors de l'ajout du document : ", err);
-			alert("Erreur lors de l'ajout du document");
-		});
+	try {
+		const response = await props.storage.post(newDoc);
+		console.log("Document ajouté avec succès : ", response);
+
+		//
+		if (selectedFile.value) {
+			await props.storage.putAttachment(
+				response.id,
+				"magnifiqueImage",
+				response.rev,
+				selectedFile.value, // Le fichier (Blob)
+				selectedFile.value.type, // Type MIME (ex: "image/jpeg")
+			);
+			console.log("Image ajoutée avec succès");
+		}
+
+		bookName.value = "";
+		bookDescription.value = "";
+		bookCategory.value = "";
+		bookAuthor.value = "";
+		bookLikes.value = 0;
+		removeSelectedImage();
+
+		emit("documentAdded");
+		emit("close");
+	} catch (err: any) {
+		console.error("Erreur lors de l'ajout du document : ", err);
+		alert("Erreur lors de l'ajout du document");
+	}
 };
 
 const handleClose = () => {
@@ -65,11 +105,14 @@ const handleClose = () => {
 		<div class="modal-content">
 			<div class="modal-header">
 				<h2>Ajouter un document</h2>
-				<button class="close-btn" @click="handleClose">&times;</button>
+				<button class="close-btn" @click="handleClose">
+					&times;
+				</button>
 			</div>
 			<p v-if="props.isOnline === false" class="offline-warning">
-				Vous êtes hors ligne — le document sera stocké localement et synchronisé
-				lorsque la connexion reviendra.
+				Vous êtes hors ligne — le document sera stocké
+				localement et synchronisé lorsque la connexion
+				reviendra.
 			</p>
 			<form @submit="handleSubmit">
 				<div class="form-group">
@@ -119,11 +162,41 @@ const handleClose = () => {
 						placeholder="Entrez le nombre de likes"
 					/>
 				</div>
+				<div class="form-group">
+					<label for="doc-image"
+						>Image de couverture:</label
+					>
+					<input
+						type="file"
+						id="doc-image"
+						accept="image/*"
+						@change="handleFileSelect"
+					/>
+					<div v-if="imagePreview" class="image-preview">
+						<img
+							:src="imagePreview"
+							alt="Prévisualisation"
+						/>
+						<button
+							type="button"
+							class="btn-remove-image"
+							@click="removeSelectedImage"
+						>
+							Supprimer l'image
+						</button>
+					</div>
+				</div>
 				<div class="form-actions">
-					<button type="button" class="btn-secondary" @click="handleClose">
+					<button
+						type="button"
+						class="btn-secondary"
+						@click="handleClose"
+					>
 						Annuler
 					</button>
-					<button type="submit" class="btn-primary">Ajouter</button>
+					<button type="submit" class="btn-primary">
+						Ajouter
+					</button>
 				</div>
 			</form>
 		</div>
@@ -274,5 +347,35 @@ const handleClose = () => {
 .btn-primary:active,
 .btn-secondary:active {
 	transform: scale(0.98);
+}
+
+.image-preview {
+	margin-top: 0.75rem;
+	text-align: center;
+}
+
+.image-preview img {
+	max-width: 100%;
+	max-height: 200px;
+	border-radius: 0.375rem;
+	border: 1px solid #d1d5db;
+	object-fit: contain;
+}
+
+.btn-remove-image {
+	display: block;
+	margin: 0.5rem auto 0;
+	padding: 0.375rem 0.75rem;
+	background-color: #dc2626;
+	color: white;
+	border: none;
+	border-radius: 0.375rem;
+	font-size: 0.75rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-remove-image:hover {
+	background-color: #b91c1c;
 }
 </style>

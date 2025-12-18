@@ -19,6 +19,8 @@ declare interface Book {
 	attributes: {
 		creation_date: any;
 	};
+	_attachments?: any; // Pour vérifier si le document a des attachments
+	coverUrl?: string; // URL de l'image générée avec createObjectURL
 }
 
 const storage = ref(); // considered as main db
@@ -355,10 +357,26 @@ const syncDatabase = () => {
 		});
 };
 
+// Fonction pour charger l'image d'un livre
+const loadBookCover = async (book: Book): Promise<string | undefined> => {
+	if (!book._id || !book._attachments?.cover) {
+		return undefined;
+	}
+	try {
+		const blob = await storage.value.getAttachment(book._id, "cover");
+		return URL.createObjectURL(blob);
+	} catch (err) {
+		console.error("Erreur lors du chargement de l'image:", err);
+		return undefined;
+	}
+};
+
 // récupération des données
 const fetchData = async () => {
 	console.log("=> Récupération des données");
 	try {
+		let docs: Book[];
+
 		if (sortByLikes.value) {
 			// Utiliser l'index pour trier par likes
 			const result = await storage.value.find({
@@ -367,17 +385,24 @@ const fetchData = async () => {
 				},
 				sort: [{ book_likes: "desc" }],
 			});
-			booksData.value = result.docs as Book[];
+			docs = result.docs as Book[];
 		} else {
 			//tri par défaut
 			const result = await storage.value.allDocs({
 				include_docs: true,
 				descending: true,
 			});
-			booksData.value = result.rows.map(
-				(row: any) => row.doc,
-			) as Book[];
+			docs = result.rows.map((row: any) => row.doc) as Book[];
 		}
+
+		// charger les images pour chaque livre
+		for (const book of docs) {
+			if (book._attachments?.cover) {
+				book.coverUrl = await loadBookCover(book);
+			}
+		}
+
+		booksData.value = docs;
 		console.log("Données récupérées : ", booksData.value);
 	} catch (err) {
 		console.error("Erreur lors de la récupération des données : ", err);
@@ -411,6 +436,25 @@ const deleteDocument = (id: string) => {
 				err,
 			);
 		});
+};
+
+// Fonction pour supprimer l'image d'un livre
+const deleteBookCover = async (id: string) => {
+	if (!confirm("Voulez-vous vraiment supprimer cette image ?")) {
+		return;
+	}
+	try {
+		const doc = await storage.value.get(id);
+		await storage.value.removeAttachment(doc._id, "cover", doc._rev);
+		console.log("Image supprimée avec succès");
+		fetchData();
+		if (isOnline.value) {
+			syncToRemote();
+		}
+	} catch (err) {
+		console.error("Erreur lors de la suppression de l'image:", err);
+		alert("Erreur lors de la suppression de l'image");
+	}
 };
 
 // Fonction pour aimer un livre
@@ -655,6 +699,15 @@ onMounted(async () => {
 					book.book_name
 				"
 			>
+				<div v-if="book.coverUrl" class="book-cover">
+					<img :src="book.coverUrl" :alt="book.book_name" />
+					<button
+						class="btn-delete-cover"
+						@click="deleteBookCover(book._id as string)"
+					>
+						Supprimer l'image
+					</button>
+				</div>
 				<h2>{{ book.book_name }}</h2>
 				<p>
 					<strong>Catégorie:</strong>
@@ -697,6 +750,22 @@ onMounted(async () => {
 						book.book_name
 					"
 				>
+					<div v-if="book.coverUrl" class="book-cover">
+						<img
+							:src="book.coverUrl"
+							:alt="book.book_name"
+						/>
+						<button
+							class="btn-delete-cover"
+							@click="
+								deleteBookCover(
+									book._id as string,
+								)
+							"
+						>
+							Supprimer l'image
+						</button>
+					</div>
 					<h2>{{ book.book_name }}</h2>
 					<p v-if="book.book_category">
 						<strong>Catégorie:</strong>
@@ -910,5 +979,35 @@ div > h3 {
 
 * {
 	box-sizing: border-box;
+}
+
+.book-cover {
+	margin-bottom: 1rem;
+	text-align: center;
+}
+
+.book-cover img {
+	max-width: 100%;
+	max-height: 300px;
+	border-radius: 0.5rem;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	object-fit: contain;
+}
+
+.btn-delete-cover {
+	display: block;
+	margin: 0.5rem auto 0;
+	padding: 0.375rem 0.75rem;
+	background-color: #dc2626;
+	color: white;
+	border: none;
+	border-radius: 0.375rem;
+	font-size: 0.75rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-delete-cover:hover {
+	background-color: #b91c1c;
 }
 </style>

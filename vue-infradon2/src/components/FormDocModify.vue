@@ -33,6 +33,43 @@ const bookCategory = ref("");
 const bookAuthor = ref("");
 const currentDoc = ref<Book | null>(null);
 const bookLikes = ref(0);
+const selectedFile = ref<File | null>(null);
+const imagePreview = ref<string | null>(null);
+const hasExistingImage = ref(false);
+const removeExistingImage = ref(false);
+
+const handleFileSelect = (event: Event) => {
+	const target = event.target as HTMLInputElement;
+	const file = target.files?.[0];
+
+	if (file) {
+		if (!file.type.startsWith("image/")) {
+			alert("Veuillez sélecqtionner une image");
+			return;
+		}
+
+		selectedFile.value = file;
+		imagePreview.value = URL.createObjectURL(file);
+		removeExistingImage.value = false;
+	}
+};
+
+const removeSelectedImage = () => {
+	if (imagePreview.value && selectedFile.value) {
+		URL.revokeObjectURL(imagePreview.value);
+	}
+	selectedFile.value = null;
+	imagePreview.value = null;
+};
+
+const markExistingImageForRemoval = () => {
+	removeExistingImage.value = true;
+	hasExistingImage.value = false;
+	if (imagePreview.value) {
+		URL.revokeObjectURL(imagePreview.value);
+		imagePreview.value = null;
+	}
+};
 
 onMounted(async () => {
 	try {
@@ -43,6 +80,23 @@ onMounted(async () => {
 		bookCategory.value = doc.book_category || "";
 		bookAuthor.value = doc.book_author || "";
 		bookLikes.value = doc.book_likes || 0;
+
+		// Charger l'image existante si elle es trouvée
+		if (doc._attachments?.cover) {
+			hasExistingImage.value = true;
+			try {
+				const blob = await props.storage.getAttachment(
+					props.documentId,
+					"cover",
+				);
+				imagePreview.value = URL.createObjectURL(blob);
+			} catch (err) {
+				console.error(
+					"Erreur lors du chargement de l'image:",
+					err,
+				);
+			}
+		}
 	} catch (err) {
 		console.error("Erreur lors du chargement du document:", err);
 		alert("Impossible de charger le document");
@@ -50,7 +104,7 @@ onMounted(async () => {
 	}
 });
 
-const handleSubmit = (e: Event) => {
+const handleSubmit = async (e: Event) => {
 	e.preventDefault();
 
 	if (!bookName.value || !bookDescription.value) {
@@ -63,31 +117,51 @@ const handleSubmit = (e: Event) => {
 		return;
 	}
 
-	// Mettre à jour le document existant (garder _id et _rev)
-	const updatedDoc = {
-		...currentDoc.value,
-		book_name: bookName.value,
-		book_description: bookDescription.value,
-		book_category: bookCategory.value,
-		book_author: bookAuthor.value,
-		book_likes: bookLikes.value,
-		attributes: {
-			...currentDoc.value.attributes,
-			modification_date: new Date().toISOString(),
-		},
-	};
+	try {
+		// Mettre à jour le document existant (garder _id et _rev)
+		const updatedDoc = {
+			...currentDoc.value,
+			book_name: bookName.value,
+			book_description: bookDescription.value,
+			book_category: bookCategory.value,
+			book_author: bookAuthor.value,
+			book_likes: bookLikes.value,
+			attributes: {
+				...currentDoc.value.attributes,
+				modification_date: new Date().toISOString(),
+			},
+		};
 
-	props.storage
-		.put(updatedDoc)
-		.then((response: any) => {
-			console.log("Document modifié avec succès : ", response);
-			emit("documentModified");
-			emit("close");
-		})
-		.catch((err: any) => {
-			console.error("Erreur lors de la modification du document : ", err);
-			alert("Erreur lors de la modification du document");
-		});
+		let response = await props.storage.put(updatedDoc);
+		console.log("Document modifié avec succès : ", response);
+
+		// Supprimer l'image existante si demandé
+		if (removeExistingImage.value) {
+			response = await props.storage.removeAttachment(
+				response.id,
+				"cover",
+				response.rev,
+			);
+			console.log("Image existante supprimée");
+		}
+
+		if (selectedFile.value) {
+			await props.storage.putAttachment(
+				response.id,
+				"cover",
+				response.rev,
+				selectedFile.value,
+				selectedFile.value.type,
+			);
+			console.log("Nouvelle image ajoutée");
+		}
+
+		emit("documentModified");
+		emit("close");
+	} catch (err: any) {
+		console.error("Erreur lors de la modification du document : ", err);
+		alert("Erreur lors de la modification du document");
+	}
 };
 
 const handleClose = () => {
@@ -100,11 +174,14 @@ const handleClose = () => {
 		<div class="modal-content">
 			<div class="modal-header">
 				<h2>Modifier le document</h2>
-				<button class="close-btn" @click="handleClose">&times;</button>
+				<button class="close-btn" @click="handleClose">
+					&times;
+				</button>
 			</div>
 			<p v-if="props.isOnline === false" class="offline-warning">
-				Vous êtes hors ligne — la modification sera appliquée localement et
-				synchronisée lorsque la connexion reviendra.
+				Vous êtes hors ligne — la modification sera appliquée
+				localement et synchronisée lorsque la connexion
+				reviendra.
 			</p>
 			<form @submit="handleSubmit">
 				<div class="form-group">
@@ -155,11 +232,61 @@ const handleClose = () => {
 						min="0"
 					/>
 				</div>
+				<div class="form-group">
+					<label for="doc-image"
+						>Image de couverture:</label
+					>
+					<div v-if="imagePreview" class="image-preview">
+						<img
+							:src="imagePreview"
+							alt="Prévisualisation"
+						/>
+						<button
+							v-if="hasExistingImage"
+							type="button"
+							class="btn-remove-image"
+							@click="markExistingImageForRemoval"
+						>
+							Supprimer l'image
+						</button>
+						<button
+							v-else-if="selectedFile"
+							type="button"
+							class="btn-remove-image"
+							@click="removeSelectedImage"
+						>
+							Annuler la sélection
+						</button>
+					</div>
+					<div
+						v-if="removeExistingImage"
+						class="image-removed-notice"
+					>
+						L'image sera supprimée lors de la
+						sauvegarde.
+					</div>
+					<input
+						type="file"
+						id="doc-image"
+						accept="image/*"
+						@change="handleFileSelect"
+					/>
+					<small v-if="hasExistingImage || imagePreview">
+						Sélectionner une nouvelle image remplacera
+						l'existante.
+					</small>
+				</div>
 				<div class="form-actions">
-					<button type="button" class="btn-secondary" @click="handleClose">
+					<button
+						type="button"
+						class="btn-secondary"
+						@click="handleClose"
+					>
 						Annuler
 					</button>
-					<button type="submit" class="btn-primary">Modifier</button>
+					<button type="submit" class="btn-primary">
+						Modifier
+					</button>
 				</div>
 			</form>
 		</div>
@@ -310,5 +437,52 @@ const handleClose = () => {
 .btn-primary:active,
 .btn-secondary:active {
 	transform: scale(0.98);
+}
+
+.image-preview {
+	margin: 0.75rem 0;
+	text-align: center;
+}
+
+.image-preview img {
+	max-width: 100%;
+	max-height: 200px;
+	border-radius: 0.375rem;
+	border: 1px solid #d1d5db;
+	object-fit: contain;
+}
+
+.btn-remove-image {
+	display: block;
+	margin: 0.5rem auto 0;
+	padding: 0.375rem 0.75rem;
+	background-color: #dc2626;
+	color: white;
+	border: none;
+	border-radius: 0.375rem;
+	font-size: 0.75rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-remove-image:hover {
+	background-color: #b91c1c;
+}
+
+.image-removed-notice {
+	background-color: #fef3c7;
+	color: #92400e;
+	padding: 0.5rem;
+	border-radius: 0.375rem;
+	font-size: 0.75rem;
+	margin: 0.5rem 0;
+	text-align: center;
+}
+
+.form-group small {
+	display: block;
+	margin-top: 0.25rem;
+	color: #6b7280;
+	font-size: 0.75rem;
 }
 </style>
