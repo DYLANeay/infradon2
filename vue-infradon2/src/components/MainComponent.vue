@@ -193,9 +193,9 @@ const initDatabase = async () => {
 	console.log("Base de données locale créée : infradon2_local_db");
 
 	remoteDB.value = new PouchDB(
-		"http://admin:1756@localhost:5984/infradon2_db",
+		"http://admin:1756@localhost:5984/dylan-eray_books",
 	);
-	console.log("Connecté à la base de données distante : infradon2_db");
+	console.log("Connecté à la base de données distante : dylan-eray_books");
 
 	storage.value = localDB.value;
 
@@ -206,10 +206,10 @@ const initDatabase = async () => {
 	);
 
 	commentsRemoteDB.value = new PouchDB(
-		"http://admin:1756@localhost:5984/infradon2_comments_db",
+		"http://admin:1756@localhost:5984/dylan-eray_comments",
 	);
 	console.log(
-		"Connecté à la base de données distante des commentaires : infradon2_comments_db",
+		"Connecté à la base de données distante des commentaires : dylan-eray_comments",
 	);
 
 	commentsStorage.value = commentsLocalDB.value;
