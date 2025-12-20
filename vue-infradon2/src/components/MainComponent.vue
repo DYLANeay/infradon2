@@ -5,6 +5,7 @@ import PouchDBFind from "pouchdb-find";
 import FormDoc from "./FormDocAdd.vue";
 import FormDocModify from "./FormDocModify.vue";
 import CommentsSection from "./CommentsSection.vue";
+import TopLikedBooks from "./TopLikedBooks.vue";
 
 PouchDB.plugin(PouchDBFind);
 
@@ -40,6 +41,7 @@ const searchTerm = ref("");
 const searchResults = ref<Book[]>([]);
 const isSearching = ref(false);
 const sortByLikes = ref(false);
+const showTopLikedView = ref(false);
 
 // Factory pour générer des documents de test
 const generateTestDocuments = async (count: number = 50) => {
@@ -118,6 +120,13 @@ const createIndex = async () => {
 		await commentsStorage.value.createIndex({
 			index: {
 				fields: ["type", "book_id"],
+			},
+		});
+		// Index composite pour récupérer le dernier commentaire d'un livre
+		// Permet de trier par date et filtrer par type/book_id en une seule requête
+		await commentsStorage.value.createIndex({
+			index: {
+				fields: ["type", "book_id", "attributes.creation_date"],
 			},
 		});
 		console.log("Indexes pour les commentaires créées");
@@ -634,8 +643,12 @@ onMounted(async () => {
 			</button>
 		</div>
 		<div>
-			<button @click="renderTenTopLikes">
-				Afficher les 10 livres les plus likés uniquement
+			<button @click="showTopLikedView = !showTopLikedView">
+				{{
+					showTopLikedView
+						? "Retour à la liste complète"
+						: "Voir le top des livres likés"
+				}}
 			</button>
 		</div>
 		<button
@@ -689,7 +702,14 @@ onMounted(async () => {
 		@document-modified="handleDocumentModified"
 	/>
 
-	<div v-if="searchResults.length > 0">
+	<!-- Vue Top Liked avec lazy loading -->
+	<TopLikedBooks
+		v-if="showTopLikedView"
+		:storage="storage"
+		:comments-storage="commentsStorage"
+	/>
+
+	<div v-else-if="searchResults.length > 0">
 		<h3>Résultats de recherche :</h3>
 		<template v-for="book in searchResults" v-bind:key="book._id">
 			<!-- on vérifie que le document n'est pas un index, ou qu'il n'est pas un commentaire (sous entendu un book avec un book_name) -->
@@ -738,7 +758,7 @@ onMounted(async () => {
 		</template>
 	</div>
 
-	<div v-else>
+	<div v-else-if="!showTopLikedView">
 		<h3>Tous les livres :</h3>
 
 		<div v-if="booksData.length > 0">
