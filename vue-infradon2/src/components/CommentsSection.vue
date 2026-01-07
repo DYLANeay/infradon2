@@ -23,6 +23,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
 	commentAdded: [];
 	commentDeleted: [];
+	commentUpdated: [];
 }>();
 
 const comments = ref<Comment[]>([]);
@@ -30,12 +31,21 @@ const newCommentContent = ref("");
 const newCommentAuthor = ref("");
 const showAddForm = ref(false);
 
+// état pour l'édition de commentaire
+const editingCommentId = ref<string | null>(null);
+const editContent = ref("");
+const editAuthor = ref("");
+
 const loadComments = async () => {
 	try {
 		const allDocs = await props.storage.allDocs({ include_docs: true });
 		comments.value = allDocs.rows
 			.map((row: any) => row.doc)
-			.filter((doc: any) => doc.type === "comment" && doc.book_id === props.bookId)
+			.filter(
+				(doc: any) =>
+					doc.type === "comment" &&
+					doc.book_id === props.bookId,
+			)
 			.sort(
 				(a: Comment, b: Comment) =>
 					new Date(b.attributes.creation_date).getTime() -
@@ -95,6 +105,45 @@ const deleteComment = async (commentId: string) => {
 	}
 };
 
+//partie pour modif un commentaire
+const startEdit = (comment: Comment) => {
+	editingCommentId.value = comment._id!; //! qui assure à TS que la valeur de comment._id n'est pas null ou undefined
+	editContent.value = comment.content;
+	editAuthor.value = comment.author;
+};
+
+const cancelEdit = () => {
+	editingCommentId.value = null;
+	editContent.value = "";
+	editAuthor.value = "";
+};
+
+const saveEdit = async () => {
+	if (!editContent.value.trim() || !editAuthor.value.trim()) {
+		alert("Veuillez remplir tous les champs");
+		return;
+	}
+
+	try {
+		const doc = await props.storage.get(editingCommentId.value);
+		const updatedComment = {
+			...doc,
+			content: editContent.value.trim(),
+			author: editAuthor.value.trim(),
+		};
+		await props.storage.put(updatedComment);
+		console.log("Commentaire modifié avec succès");
+		cancelEdit();
+		await loadComments();
+		emit("commentUpdated");
+	} catch (err) {
+		console.error(
+			"Erreur lors de la modification du commentaire:",
+			err,
+		);
+	}
+};
+
 onMounted(() => {
 	loadComments();
 });
@@ -104,8 +153,15 @@ onMounted(() => {
 	<div class="comments-section">
 		<div class="comments-header">
 			<h4>Commentaires ({{ comments.length }})</h4>
-			<button @click="showAddForm = !showAddForm" class="btn-add-comment">
-				{{ showAddForm ? "Annuler" : "+ Ajouter un commentaire" }}
+			<button
+				@click="showAddForm = !showAddForm"
+				class="btn-add-comment"
+			>
+				{{
+					showAddForm
+						? "Annuler"
+						: "+ Ajouter un commentaire"
+				}}
 			</button>
 		</div>
 
@@ -128,31 +184,98 @@ onMounted(() => {
 				></textarea>
 			</div>
 			<div class="form-actions">
-				<button @click="addComment" class="btn-primary">Publier</button>
-				<button @click="showAddForm = false" class="btn-secondary">Annuler</button>
+				<button @click="addComment" class="btn-primary">
+					Publier
+				</button>
+				<button
+					@click="showAddForm = false"
+					class="btn-secondary"
+				>
+					Annuler
+				</button>
 			</div>
 		</div>
 
 		<!-- Liste des commentaires -->
 		<div class="comments-list">
-			<div v-if="comments.length === 0 && !showAddForm" class="no-comments">
-				Aucun commentaire pour le moment. Soyez le premier à commenter !
+			<div
+				v-if="comments.length === 0 && !showAddForm"
+				class="no-comments"
+			>
+				Aucun commentaire pour le moment. Soyez le premier à
+				commenter !
 			</div>
-			<div v-for="comment in comments" :key="comment._id" class="comment-item">
-				<div class="comment-header">
-					<strong>{{ comment.author }}</strong>
-					<span class="comment-date">
-						{{
-							new Date(
-								comment.attributes.creation_date,
-							).toLocaleDateString("fr-FR")
-						}}
-					</span>
+			<div
+				v-for="comment in comments"
+				:key="comment._id"
+				class="comment-item"
+			>
+				<!-- Mode édition -->
+				<div
+					v-if="editingCommentId === comment._id"
+					class="edit-comment-form"
+				>
+					<div class="form-group">
+						<input
+							type="text"
+							v-model="editAuthor"
+							placeholder="Votre nom"
+							class="comment-input"
+						/>
+					</div>
+					<div class="form-group">
+						<textarea
+							v-model="editContent"
+							placeholder="Votre commentaire"
+							rows="3"
+							class="comment-textarea"
+						></textarea>
+					</div>
+					<div class="form-actions">
+						<button
+							@click="saveEdit"
+							class="btn-primary"
+						>
+							Sauvegarder
+						</button>
+						<button
+							@click="cancelEdit"
+							class="btn-secondary"
+						>
+							Annuler
+						</button>
+					</div>
 				</div>
-				<p class="comment-content">{{ comment.content }}</p>
-				<button @click="deleteComment(comment._id!)" class="btn-delete-comment">
-					Supprimer
-				</button>
+				<!-- Mode affichage -->
+				<template v-else>
+					<div class="comment-header">
+						<strong>{{ comment.author }}</strong>
+						<span class="comment-date">
+							{{
+								new Date(
+									comment.attributes.creation_date,
+								).toLocaleDateString("fr-FR")
+							}}
+						</span>
+					</div>
+					<p class="comment-content">
+						{{ comment.content }}
+					</p>
+					<div class="comment-actions">
+						<button
+							@click="startEdit(comment)"
+							class="btn-edit-comment"
+						>
+							Modifier
+						</button>
+						<button
+							@click="deleteComment(comment._id!)"
+							class="btn-delete-comment"
+						>
+							Supprimer
+						</button>
+					</div>
+				</template>
 			</div>
 		</div>
 	</div>
@@ -194,7 +317,8 @@ onMounted(() => {
 	background-color: #4f46e5;
 }
 
-.add-comment-form {
+.add-comment-form,
+.edit-comment-form {
 	background-color: #f9fafb;
 	padding: 1rem;
 	border-radius: 0.375rem;
@@ -303,6 +427,27 @@ onMounted(() => {
 	font-size: 0.875rem;
 	margin: 0.5rem 0;
 	line-height: 1.5;
+}
+
+.comment-actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.btn-edit-comment {
+	padding: 0.25rem 0.5rem;
+	background-color: transparent;
+	color: #6366f1;
+	border: 1px solid #6366f1;
+	border-radius: 0.25rem;
+	font-size: 0.75rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-edit-comment:hover {
+	background-color: #6366f1;
+	color: white;
 }
 
 .btn-delete-comment {
