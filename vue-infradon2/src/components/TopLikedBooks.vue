@@ -97,12 +97,14 @@ const loadBooks = async () => {
 			hasMore.value = false;
 		}
 
-		// Pour chaque livre, récupérer le dernier commentaire
+		// Pour chaque livre, récupérer le dernier commentaire et l'image de couverture
 		const booksWithComments: BookWithComment[] = await Promise.all(
 			newBooks.map(async (book) => {
 				const lastComment = await getLastComment(book._id!);
+				const coverUrl = await loadCoverImage(book);
 				return {
 					...book,
+					coverUrl,
 					lastComment,
 					showAllComments: false,
 					allComments: [],
@@ -118,6 +120,21 @@ const loadBooks = async () => {
 		console.error("Erreur lors du chargement des livres:", error);
 	} finally {
 		isLoading.value = false;
+	}
+};
+
+/**
+ * Charge l'image de couverture d'un livre si elle existe
+ */
+const loadCoverImage = async (book: Book): Promise<string | undefined> => {
+	if (!book._attachments?.cover) return undefined;
+
+	try {
+		const blob = await props.storage.getAttachment(book._id, "cover");
+		return URL.createObjectURL(blob);
+	} catch (error) {
+		console.error("Erreur lors du chargement de l'image:", error);
+		return undefined;
 	}
 };
 
@@ -261,6 +278,11 @@ onUnmounted(() => {
 	if (observer) {
 		observer.disconnect();
 	}
+	books.value.forEach((book) => {
+		if (book.coverUrl) {
+			URL.revokeObjectURL(book.coverUrl);
+		}
+	});
 });
 </script>
 
@@ -270,6 +292,12 @@ onUnmounted(() => {
 
 		<template v-for="book in books" :key="book._id">
 			<article v-if="book.book_name">
+				<img
+					v-if="book.coverUrl"
+					:src="book.coverUrl"
+					:alt="book.book_name"
+					class="book-cover"
+				/>
 				<h2>{{ book.book_name }}</h2>
 				<p v-if="book.book_category">
 					<strong>Catégorie:</strong>
@@ -376,6 +404,15 @@ article h2 {
 	font-weight: 600;
 	color: #1a1a1a;
 	margin-bottom: 0.5rem;
+}
+
+.book-cover {
+	max-width: 200px;
+	max-height: 250px;
+	object-fit: cover;
+	border-radius: 0.375rem;
+	margin-bottom: 1rem;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 article h3 {
